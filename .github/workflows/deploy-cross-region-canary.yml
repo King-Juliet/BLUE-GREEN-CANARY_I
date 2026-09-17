@@ -81,25 +81,45 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.8.5
+          terraform_version: 1.10.5
 
-      - name: Apply blue regional infrastructure
+      - name: Plan blue regional infrastructure
         run: |
           terraform -chdir=infrastructure/us-east-1 init -input=false \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="key=blue/terraform.tfstate" \
             -backend-config="region=us-east-1"
-          terraform -chdir=infrastructure/us-east-1 apply -input=false -auto-approve
+          terraform -chdir=infrastructure/us-east-1 plan -input=false -out=tfplan
 
-      - name: Apply green regional infrastructure
+      - name: Upload blue regional plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: blue-regional-tfplan
+          path: infrastructure/us-east-1/tfplan
+          retention-days: 5
+
+      - name: Apply blue regional infrastructure
+        run: terraform -chdir=infrastructure/us-east-1 apply -input=false tfplan
+
+      - name: Plan green regional infrastructure
         run: |
           terraform -chdir=infrastructure/eu-north-1 init -input=false \
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="key=green/terraform.tfstate" \
             -backend-config="region=us-east-1"
-          terraform -chdir=infrastructure/eu-north-1 apply -input=false -auto-approve
+          terraform -chdir=infrastructure/eu-north-1 plan -input=false -out=tfplan
 
-      - name: Apply global Route 53 infrastructure
+      - name: Upload green regional plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: green-regional-tfplan
+          path: infrastructure/eu-north-1/tfplan
+          retention-days: 5
+
+      - name: Apply green regional infrastructure
+        run: terraform -chdir=infrastructure/eu-north-1 apply -input=false tfplan
+
+      - name: Plan global Route 53 infrastructure
         run: |
           BLUE_ALB_DNS=$(terraform -chdir=infrastructure/us-east-1 output -raw alb_dns_name)
           BLUE_ALB_ZONE_ID=$(terraform -chdir=infrastructure/us-east-1 output -raw alb_zone_id)
@@ -109,11 +129,21 @@ jobs:
             -backend-config="bucket=${TF_STATE_BUCKET}" \
             -backend-config="key=global/terraform.tfstate" \
             -backend-config="region=us-east-1"
-          terraform -chdir=infrastructure/global apply -input=false -auto-approve \
+          terraform -chdir=infrastructure/global plan -input=false -out=tfplan \
             -var="blue_alb_dns_name=${BLUE_ALB_DNS}" \
             -var="blue_alb_zone_id=${BLUE_ALB_ZONE_ID}" \
             -var="green_alb_dns_name=${GREEN_ALB_DNS}" \
             -var="green_alb_zone_id=${GREEN_ALB_ZONE_ID}"
+
+      - name: Upload global Route 53 plan
+        uses: actions/upload-artifact@v4
+        with:
+          name: global-route53-tfplan
+          path: infrastructure/global/tfplan
+          retention-days: 5
+
+      - name: Apply global Route 53 infrastructure
+        run: terraform -chdir=infrastructure/global apply -input=false tfplan
 
       - name: Determine release mode
         id: release-mode
@@ -385,7 +415,6 @@ jobs:
                 --argjson green_weight "${GREEN_WEIGHT}" \
                 '{Changes: [{Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "blue-region", Weight: $blue_weight, AliasTarget: {DNSName: $blue_dns, HostedZoneId: $blue_zone, EvaluateTargetHealth: true}}}, {Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "green-region", Weight: $green_weight, AliasTarget: {DNSName: $green_dns, HostedZoneId: $green_zone, EvaluateTargetHealth: true}}}]}')"
               aws ssm put-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --type String --value "${DEPLOYMENT_TARGET}" --overwrite
-
 
 
 
