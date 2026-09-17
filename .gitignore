@@ -1,0 +1,52 @@
+# --- Terraform ---
+# .terraform.lock.hcl is intentionally NOT ignored — it should be committed so everyone
+# (and CI) resolves the exact same provider versions.
+**/.terraform/
+*.tfstate
+*.tfstate.*
+errored.tfstate
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+*.tfplan
+*.tfvars
+*.auto.tfvars
+!example.tfvars
+
+# --- Secrets / credentials ---
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+
+# --- Documentation working files (not meant for the repo) ---
+documentation/
+
+# --- Node.js (test_app/frontend) ---
+node_modules/
+.next/
+out/
+npm-debug.log*
+yarn-error.log*
+.npm/
+
+# --- .NET (test_app/backend) ---
+bin/
+obj/
+*.user
+
+# --- OS / editor cruft ---
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+~$*
+.idea/
+.vscode

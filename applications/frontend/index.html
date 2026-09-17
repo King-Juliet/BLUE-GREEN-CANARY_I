@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BlueCart Store</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-logo">BC</span>
+        <span class="brand-name">BlueCart</span>
+      </div>
+      <nav class="nav">
+        <a class="nav-link" href="#">Shop</a>
+        <a class="nav-link" href="#">Deals</a>
+        <a class="nav-link" href="#">Collections</a>
+      </nav>
+      <div class="cart-status">
+        <span id="cartCount">0</span>
+        <span class="cart-icon">🛒</span>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="hero">
+        <div class="hero-copy">
+          <span class="tag">Spring Collection</span>
+          <h1>Smart shopping for every day.</h1>
+          <p class="hero-text">Discover everyday essentials and fresh arrivals for your home and lifestyle.</p>
+          <div class="hero-actions">
+            <button class="primary-button" id="shopNow">Shop Best Sellers</button>
+            <button class="secondary-button" id="previewDeals">View Deals</button>
+          </div>
+          <div class="hero-metrics">
+            <div>
+              <span class="metric-value">24h</span>
+              <span class="metric-label">Fast delivery</span>
+            </div>
+            <div>
+              <span class="metric-value">2k+</span>
+              <span class="metric-label">Products</span>
+            </div>
+            <div>
+              <span class="metric-value">98%</span>
+              <span class="metric-label">Happy shoppers</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="hero-card">
+          <div class="hero-image">
+            <span class="floating-badge">New arrival</span>
+            <span class="product-splash">BlueCart</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="category-strip">
+        <button class="category-button active">All</button>
+        <button class="category-button">Home</button>
+        <button class="category-button">Beauty</button>
+        <button class="category-button">Lifestyle</button>
+        <button class="category-button">Office</button>
+      </section>
+
+      <section class="shop-panel">
+        <div class="section-title-row">
+          <div>
+            <span class="section-kicker">Marketplace</span>
+            <h2>Featured products</h2>
+          </div>
+          <div class="filters">
+            <select id="sortSelect">
+              <option value="featured">Featured</option>
+              <option value="low-high">Price: Low to High</option>
+              <option value="high-low">Price: High to Low</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="product-grid" id="productGrid">
+        </div>
+      </section>
+
+      <section class="checkout-panel">
+        <div class="checkout-header">
+          <div>
+            <span class="section-kicker">Your Bag</span>
+            <h2>Review order</h2>
+          </div>
+          <button class="primary-button small" id="checkoutButton">Checkout</button>
+        </div>
+        <div class="checkout-items" id="checkoutItems">
+          <div class="empty-cart">No items added yet.</div>
+        </div>
+      </section>
+
+      <section class="order-form">
+        <div class="section-title-row compact">
+          <div>
+            <span class="section-kicker">Checkout</span>
+            <h2>Place an order</h2>
+          </div>
+        </div>
+        <form id="orderForm">
+          <div class="form-grid">
+            <label>
+              <span>Customer name</span>
+              <input type="text" id="customerName" required value="Alex Johnson" />
+            </label>
+            <label>
+              <span>Email</span>
+              <input type="email" id="customerEmail" required value="alex@example.com" />
+            </label>
+            <label>
+              <span>Shipping city</span>
+              <input type="text" id="city" required value="Denver" />
+            </label>
+            <label>
+              <span>Product</span>
+              <select id="productSelect" required></select>
+            </label>
+          </div>
+          <div class="form-actions">
+            <button class="primary-button" type="submit">Create Order</button>
+            <span class="api-status" id="apiStatus">API ready</span>
+          </div>
+        </form>
+      </section>
+
+      <section class="notice">
+        <div class="notice-card">
+          <span class="notice-icon">✓</span>
+          <div>
+            <strong>Schema-aware deployment</strong>
+            <p>Frontend and backend use a compatibility registry model for products, orders, and customer contracts.</p>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+</html>

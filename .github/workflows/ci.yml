@@ -1,0 +1,86 @@
+# CI validates application code and Terraform configuration.
+# It never changes AWS resources.
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+      - "feature/**"
+      - "fix/**"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Application syntax, tests, and container build checks.
+  application:
+    name: Application checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install backend dependencies
+        run: npm --prefix applications/backend install --omit=dev
+
+      - name: Check JavaScript syntax
+        run: |
+          node --check applications/backend/server.js
+          node --check applications/frontend/app.js
+
+      - name: Run backend tests
+        run: npm --prefix applications/backend test
+
+      - name: Build frontend image
+        run: docker build -f applications/frontend/Dockerfile applications/frontend
+
+      - name: Build backend image
+        run: docker build -f applications/backend/Dockerfile applications/backend
+
+  # Basic Terraform formatting, initialization, and validation only.
+  # Plans and applies belong to the deployment workflow.
+  terraform:
+    name: Terraform checks
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        root:
+          - infrastructure/us-east-1
+          - infrastructure/eu-north-1
+          - infrastructure/global
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10
+
+      - name: Check Terraform formatting
+        working-directory: ${{ matrix.root }}
+        run: terraform fmt -check -recursive
+
+      - name: Initialize Terraform
+        working-directory: ${{ matrix.root }}
+        run: terraform init -backend=false -input=false
+
+      - name: Validate Terraform
+        working-directory: ${{ matrix.root }}
+        run: terraform validate
