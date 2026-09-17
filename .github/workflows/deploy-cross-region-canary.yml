@@ -1,5 +1,7 @@
 # CD deploys application images and controls Route 53 canary traffic.
 # CD provisions infrastructure, deploys the selected region, and controls Route 53 canary traffic.
+# Runs only after the Continuous Integration workflow completes successfully on main
+# (or via manual workflow_dispatch), so nothing deploys on a failed CI run.
 name: Cross-Region Blue-Green Canary Deploy
 
 on:
@@ -15,9 +17,10 @@ on:
           - both
           - blue
           - green
-  push:
-    branches:
-      - main
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types: [completed]
+    branches: [main]
 
 permissions:
   id-token: write
@@ -34,7 +37,7 @@ env:
   ACTIVE_REGION_PARAMETER: /bluegreen-canary/deployment/active-region
   ROUTE53_ZONE_NAME: ${{ vars.ROUTE53_ZONE_NAME }}
   ROUTE53_RECORD_NAME: ${{ vars.ROUTE53_RECORD_NAME }}
-  IMAGE_TAG: ${{ github.sha }}
+  IMAGE_TAG: ${{ github.event.workflow_run.head_sha || github.sha }}
   BLUE_REPOSITORY_URI: ${{ vars.BLUE_REPOSITORY_URI }}
   GREEN_REPOSITORY_URI: ${{ vars.GREEN_REPOSITORY_URI }}
   BLUE_FRONTEND_CLUSTER: bluegreen-canary-blue-blue-frontend-cluster
@@ -56,6 +59,8 @@ jobs:
     name: Provision infrastructure
     runs-on: ubuntu-latest
     environment: production
+    # Manual workflow_dispatch always runs; a workflow_run trigger only proceeds if CI succeeded.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
     outputs:
       deployment_target: ${{ steps.release-mode.outputs.deployment_target }}
       active_region: ${{ steps.release-mode.outputs.active_region }}
@@ -64,6 +69,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -74,7 +81,7 @@ jobs:
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.10
+          terraform_version: 1.8.5
 
       - name: Apply blue regional infrastructure
         run: |
@@ -142,6 +149,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -376,3 +385,387 @@ jobs:
                 --argjson green_weight "${GREEN_WEIGHT}" \
                 '{Changes: [{Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "blue-region", Weight: $blue_weight, AliasTarget: {DNSName: $blue_dns, HostedZoneId: $blue_zone, EvaluateTargetHealth: true}}}, {Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "green-region", Weight: $green_weight, AliasTarget: {DNSName: $green_dns, HostedZoneId: $green_zone, EvaluateTargetHealth: true}}}]}')"
               aws ssm put-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --type String --value "${DEPLOYMENT_TARGET}" --overwrite
+
+
+
+
+
+
+# # CD deploys application images and controls Route 53 canary traffic.
+# # CD provisions infrastructure, deploys the selected region, and controls Route 53 canary traffic.
+# name: Cross-Region Blue-Green Canary Deploy
+
+# on:
+#   workflow_dispatch:
+#     inputs:
+#       deployment_target:
+#         description: Region to deploy. Leave automatic for push-based releases.
+#         required: true
+#         type: choice
+#         default: automatic
+#         options:
+#           - automatic
+#           - both
+#           - blue
+#           - green
+#   push:
+#     branches:
+#       - main
+
+# permissions:
+#   id-token: write
+#   contents: read
+
+# concurrency:
+#   group: production-deployment
+#   cancel-in-progress: false
+
+# env:
+#   REQUESTED_DEPLOYMENT_TARGET: ${{ inputs.deployment_target || 'automatic' }}
+#   TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+#   INITIALIZATION_PARAMETER: /bluegreen-canary/deployment/initialized
+#   ACTIVE_REGION_PARAMETER: /bluegreen-canary/deployment/active-region
+#   ROUTE53_ZONE_NAME: ${{ vars.ROUTE53_ZONE_NAME }}
+#   ROUTE53_RECORD_NAME: ${{ vars.ROUTE53_RECORD_NAME }}
+#   IMAGE_TAG: ${{ github.sha }}
+#   BLUE_REPOSITORY_URI: ${{ vars.BLUE_REPOSITORY_URI }}
+#   GREEN_REPOSITORY_URI: ${{ vars.GREEN_REPOSITORY_URI }}
+#   BLUE_FRONTEND_CLUSTER: bluegreen-canary-blue-blue-frontend-cluster
+#   BLUE_FRONTEND_SERVICE: bluegreen-canary-blue-blue-frontend-service
+#   BLUE_BACKEND_CLUSTER: bluegreen-canary-blue-blue-backend-cluster
+#   BLUE_BACKEND_SERVICE: bluegreen-canary-blue-blue-backend-service
+#   GREEN_FRONTEND_CLUSTER: bluegreen-canary-green-green-frontend-cluster
+#   GREEN_FRONTEND_SERVICE: bluegreen-canary-green-green-frontend-service
+#   GREEN_BACKEND_CLUSTER: bluegreen-canary-green-green-backend-cluster
+#   GREEN_BACKEND_SERVICE: bluegreen-canary-green-green-backend-service
+#   BLUE_ALB_NAME: ${{ vars.BLUE_ALB_NAME }}
+#   GREEN_ALB_NAME: ${{ vars.GREEN_ALB_NAME }}
+#   BLUE_ALARM_NAME: ${{ vars.BLUE_ALARM_NAME }}
+#   GREEN_ALARM_NAME: ${{ vars.GREEN_ALARM_NAME }}
+
+# jobs:
+#   # Provision or update both regional stacks, then the global Route 53 stack.
+#   provision-infrastructure:
+#     name: Provision infrastructure
+#     runs-on: ubuntu-latest
+#     environment: production
+#     outputs:
+#       deployment_target: ${{ steps.release-mode.outputs.deployment_target }}
+#       active_region: ${{ steps.release-mode.outputs.active_region }}
+#       release_mode: ${{ steps.release-mode.outputs.release_mode }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-region: us-east-1
+#           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+
+#       - name: Set up Terraform
+#         uses: hashicorp/setup-terraform@v3
+#         with:
+#           terraform_version: 1.10
+
+#       - name: Apply blue regional infrastructure
+#         run: |
+#           terraform -chdir=infrastructure/us-east-1 init -input=false \
+#             -backend-config="bucket=${TF_STATE_BUCKET}" \
+#             -backend-config="key=blue/terraform.tfstate" \
+#             -backend-config="region=us-east-1"
+#           terraform -chdir=infrastructure/us-east-1 apply -input=false -auto-approve
+
+#       - name: Apply green regional infrastructure
+#         run: |
+#           terraform -chdir=infrastructure/eu-north-1 init -input=false \
+#             -backend-config="bucket=${TF_STATE_BUCKET}" \
+#             -backend-config="key=green/terraform.tfstate" \
+#             -backend-config="region=us-east-1"
+#           terraform -chdir=infrastructure/eu-north-1 apply -input=false -auto-approve
+
+#       - name: Apply global Route 53 infrastructure
+#         run: |
+#           BLUE_ALB_DNS=$(terraform -chdir=infrastructure/us-east-1 output -raw alb_dns_name)
+#           BLUE_ALB_ZONE_ID=$(terraform -chdir=infrastructure/us-east-1 output -raw alb_zone_id)
+#           GREEN_ALB_DNS=$(terraform -chdir=infrastructure/eu-north-1 output -raw alb_dns_name)
+#           GREEN_ALB_ZONE_ID=$(terraform -chdir=infrastructure/eu-north-1 output -raw alb_zone_id)
+#           terraform -chdir=infrastructure/global init -input=false \
+#             -backend-config="bucket=${TF_STATE_BUCKET}" \
+#             -backend-config="key=global/terraform.tfstate" \
+#             -backend-config="region=us-east-1"
+#           terraform -chdir=infrastructure/global apply -input=false -auto-approve \
+#             -var="blue_alb_dns_name=${BLUE_ALB_DNS}" \
+#             -var="blue_alb_zone_id=${BLUE_ALB_ZONE_ID}" \
+#             -var="green_alb_dns_name=${GREEN_ALB_DNS}" \
+#             -var="green_alb_zone_id=${GREEN_ALB_ZONE_ID}"
+
+#       - name: Determine release mode
+#         id: release-mode
+#         run: |
+#           set -euo pipefail
+#           if [ "${REQUESTED_DEPLOYMENT_TARGET}" = "automatic" ] && ! aws ssm get-parameter --region us-east-1 --name "${INITIALIZATION_PARAMETER}" >/dev/null 2>&1; then
+#             TARGET="both"
+#             ACTIVE_REGION="blue"
+#             RELEASE_MODE="initial"
+#           elif [ "${REQUESTED_DEPLOYMENT_TARGET}" = "automatic" ]; then
+#             ACTIVE_REGION=$(aws ssm get-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --query 'Parameter.Value' --output text)
+#             if [ "${ACTIVE_REGION}" = "blue" ]; then TARGET="green"; else TARGET="blue"; fi
+#             RELEASE_MODE="canary"
+#           else
+#             TARGET="${REQUESTED_DEPLOYMENT_TARGET}"
+#             ACTIVE_REGION=$(aws ssm get-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --query 'Parameter.Value' --output text 2>/dev/null || echo "blue")
+#             if [ "${TARGET}" = "both" ]; then RELEASE_MODE="initial"; else RELEASE_MODE="canary"; fi
+#           fi
+#           echo "deployment_target=${TARGET}" >> "${GITHUB_OUTPUT}"
+#           echo "active_region=${ACTIVE_REGION}" >> "${GITHUB_OUTPUT}"
+#           echo "release_mode=${RELEASE_MODE}" >> "${GITHUB_OUTPUT}"
+#           echo "Release target: ${TARGET}"
+#           echo "Active region: ${ACTIVE_REGION}"
+
+#   build-and-deploy:
+#     needs: provision-infrastructure
+#     runs-on: ubuntu-latest
+#     env:
+#       DEPLOYMENT_TARGET: ${{ needs.provision-infrastructure.outputs.deployment_target }}
+#       ACTIVE_REGION: ${{ needs.provision-infrastructure.outputs.active_region }}
+#       RELEASE_MODE: ${{ needs.provision-infrastructure.outputs.release_mode }}
+
+#     steps:
+#       - name: Checkout code
+#         uses: actions/checkout@v4
+
+#       - name: Configure AWS credentials
+#         uses: aws-actions/configure-aws-credentials@v4
+#         with:
+#           aws-region: us-east-1
+#           role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+
+#       - name: Login to Amazon ECR
+#         id: login-ecr
+#         uses: aws-actions/amazon-ecr-login@v2
+
+#       - name: Build and push image to blue region registry
+#         if: env.DEPLOYMENT_TARGET != 'green'
+#         run: |
+#           docker build -f applications/frontend/Dockerfile -t ${BLUE_REPOSITORY_URI}:frontend-${IMAGE_TAG} applications/frontend
+#           docker push ${BLUE_REPOSITORY_URI}:frontend-${IMAGE_TAG}
+#           docker build -f applications/backend/Dockerfile -t ${BLUE_REPOSITORY_URI}:backend-${IMAGE_TAG} applications/backend
+#           docker push ${BLUE_REPOSITORY_URI}:backend-${IMAGE_TAG}
+
+#       - name: Deploy blue region
+#         if: env.DEPLOYMENT_TARGET != 'green'
+#         run: |
+#           set -euo pipefail
+#           deploy_service() {
+#             local service="$1"
+#             local cluster="$2"
+#             local image="$3"
+#             local file_prefix="$4"
+#             task_definition=$(aws ecs describe-services --region us-east-1 --cluster "${cluster}" --services "${service}" --query 'services[0].taskDefinition' --output text)
+#             aws ecs describe-task-definition --region us-east-1 --task-definition "${task_definition}" --query 'taskDefinition' > "${file_prefix}.json"
+#             jq --arg image "${image}" ' .containerDefinitions[0].image = $image | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' "${file_prefix}.json" > "${file_prefix}-updated.json"
+#             new_task_definition=$(aws ecs register-task-definition --region us-east-1 --cli-input-json "file://${file_prefix}-updated.json" --query 'taskDefinition.taskDefinitionArn' --output text)
+#             aws ecs update-service --region us-east-1 --cluster "${cluster}" --service "${service}" --task-definition "${new_task_definition}" --force-new-deployment
+#             aws ecs wait services-stable --region us-east-1 --cluster "${cluster}" --services "${service}"
+#           }
+#           deploy_service "${BLUE_FRONTEND_SERVICE}" "${BLUE_FRONTEND_CLUSTER}" "${BLUE_REPOSITORY_URI}:frontend-${IMAGE_TAG}" blue-frontend-task-definition
+#           deploy_service "${BLUE_BACKEND_SERVICE}" "${BLUE_BACKEND_CLUSTER}" "${BLUE_REPOSITORY_URI}:backend-${IMAGE_TAG}" blue-backend-task-definition
+
+#       - name: Login to green region ECR
+#         if: env.DEPLOYMENT_TARGET != 'blue'
+#         run: |
+#           aws ecr get-login-password --region eu-north-1 | \
+#             docker login --username AWS --password-stdin "$(echo "${GREEN_REPOSITORY_URI}" | cut -d/ -f1)"
+
+#       - name: Build and push image to green region registry
+#         if: env.DEPLOYMENT_TARGET != 'blue'
+#         run: |
+#           docker build -f applications/frontend/Dockerfile -t ${GREEN_REPOSITORY_URI}:frontend-${IMAGE_TAG} applications/frontend
+#           docker push ${GREEN_REPOSITORY_URI}:frontend-${IMAGE_TAG}
+#           docker build -f applications/backend/Dockerfile -t ${GREEN_REPOSITORY_URI}:backend-${IMAGE_TAG} applications/backend
+#           docker push ${GREEN_REPOSITORY_URI}:backend-${IMAGE_TAG}
+
+#       - name: Deploy green region
+#         if: env.DEPLOYMENT_TARGET != 'blue'
+#         run: |
+#           set -euo pipefail
+#           deploy_service() {
+#             local service="$1"
+#             local cluster="$2"
+#             local image="$3"
+#             local file_prefix="$4"
+#             task_definition=$(aws ecs describe-services --region eu-north-1 --cluster "${cluster}" --services "${service}" --query 'services[0].taskDefinition' --output text)
+#             aws ecs describe-task-definition --region eu-north-1 --task-definition "${task_definition}" --query 'taskDefinition' > "${file_prefix}.json"
+#             jq --arg image "${image}" ' .containerDefinitions[0].image = $image | del(.taskDefinitionArn, .revision, .status, .requiresAttributes, .compatibilities, .registeredAt, .registeredBy)' "${file_prefix}.json" > "${file_prefix}-updated.json"
+#             new_task_definition=$(aws ecs register-task-definition --region eu-north-1 --cli-input-json "file://${file_prefix}-updated.json" --query 'taskDefinition.taskDefinitionArn' --output text)
+#             aws ecs update-service --region eu-north-1 --cluster "${cluster}" --service "${service}" --task-definition "${new_task_definition}" --force-new-deployment
+#             aws ecs wait services-stable --region eu-north-1 --cluster "${cluster}" --services "${service}"
+#           }
+#           deploy_service "${GREEN_FRONTEND_SERVICE}" "${GREEN_FRONTEND_CLUSTER}" "${GREEN_REPOSITORY_URI}:frontend-${IMAGE_TAG}" green-frontend-task-definition
+#           deploy_service "${GREEN_BACKEND_SERVICE}" "${GREEN_BACKEND_CLUSTER}" "${GREEN_REPOSITORY_URI}:backend-${IMAGE_TAG}" green-backend-task-definition
+
+#       - name: Smoke test deployed regions
+#         if: env.RELEASE_MODE == 'initial' || env.RELEASE_MODE == 'canary'
+#         run: |
+#           set -euo pipefail
+#           smoke_test() {
+#             local region="$1"
+#             local load_balancer_name="$2"
+#             local dns_name
+#             dns_name=$(aws elbv2 describe-load-balancers --region "${region}" --names "${load_balancer_name}" --query 'LoadBalancers[0].DNSName' --output text)
+#             curl --fail --silent --show-error "http://${dns_name}/"
+#             curl --fail --silent --show-error "http://${dns_name}/api/health"
+#           }
+#           if [ "${DEPLOYMENT_TARGET}" = "both" ]; then
+#             smoke_test us-east-1 "${BLUE_ALB_NAME}"
+#             smoke_test eu-north-1 "${GREEN_ALB_NAME}"
+#           elif [ "${DEPLOYMENT_TARGET}" = "blue" ]; then
+#             smoke_test us-east-1 "${BLUE_ALB_NAME}"
+#           else
+#             smoke_test eu-north-1 "${GREEN_ALB_NAME}"
+#           fi
+
+#       - name: Record active blue region after initial deployment
+#         if: env.RELEASE_MODE == 'initial'
+#         run: |
+#           aws ssm put-parameter --region us-east-1 --name "${INITIALIZATION_PARAMETER}" --type String --value "${IMAGE_TAG}" --overwrite
+#           aws ssm put-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --type String --value "blue" --overwrite
+
+#       - name: Shift global route 10% toward target region
+#         if: env.RELEASE_MODE == 'canary'
+#         run: |
+#           set -euo pipefail
+
+#           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+#             --dns-name "${ROUTE53_ZONE_NAME}." \
+#             --query 'HostedZones[0].Id' \
+#             --output text | sed 's#/$##')
+#           read -r BLUE_ALB_DNS BLUE_ALB_ZONE_ID <<< "$(aws elbv2 describe-load-balancers \
+#             --region us-east-1 \
+#             --names "${BLUE_ALB_NAME}" \
+#             --query 'LoadBalancers[0].[DNSName,CanonicalHostedZoneId]' \
+#             --output text)"
+#           read -r GREEN_ALB_DNS GREEN_ALB_ZONE_ID <<< "$(aws elbv2 describe-load-balancers \
+#             --region eu-north-1 \
+#             --names "${GREEN_ALB_NAME}" \
+#             --query 'LoadBalancers[0].[DNSName,CanonicalHostedZoneId]' \
+#             --output text)"
+
+#           if [ "${DEPLOYMENT_TARGET}" = "green" ]; then
+#             BLUE_WEIGHT=90
+#             GREEN_WEIGHT=10
+#           else
+#             BLUE_WEIGHT=10
+#             GREEN_WEIGHT=90
+#           fi
+
+#           aws route53 change-resource-record-sets \
+#             --hosted-zone-id "${ZONE_ID}" \
+#             --change-batch "$(jq -n \
+#               --arg record_name "${ROUTE53_RECORD_NAME}" \
+#               --arg blue_dns "dualstack.${BLUE_ALB_DNS}" \
+#               --arg blue_zone "${BLUE_ALB_ZONE_ID}" \
+#               --arg green_dns "dualstack.${GREEN_ALB_DNS}" \
+#               --arg green_zone "${GREEN_ALB_ZONE_ID}" \
+#               --argjson blue_weight "${BLUE_WEIGHT}" \
+#               --argjson green_weight "${GREEN_WEIGHT}" \
+#               '{Changes: [{Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "blue-region", Weight: $blue_weight, AliasTarget: {DNSName: $blue_dns, HostedZoneId: $blue_zone, EvaluateTargetHealth: true}}}, {Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "green-region", Weight: $green_weight, AliasTarget: {DNSName: $green_dns, HostedZoneId: $green_zone, EvaluateTargetHealth: true}}}]}')"
+
+#       - name: Monitor and automatically rollback on alarm
+#         if: env.RELEASE_MODE == 'canary'
+#         run: |
+#           set -euo pipefail
+
+#           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+#             --dns-name "${ROUTE53_ZONE_NAME}." \
+#             --query 'HostedZones[0].Id' \
+#             --output text | sed 's#/$##')
+#           read -r BLUE_ALB_DNS BLUE_ALB_ZONE_ID <<< "$(aws elbv2 describe-load-balancers \
+#             --region us-east-1 --names "${BLUE_ALB_NAME}" \
+#             --query 'LoadBalancers[0].[DNSName,CanonicalHostedZoneId]' --output text)"
+#           read -r GREEN_ALB_DNS GREEN_ALB_ZONE_ID <<< "$(aws elbv2 describe-load-balancers \
+#             --region eu-north-1 --names "${GREEN_ALB_NAME}" \
+#             --query 'LoadBalancers[0].[DNSName,CanonicalHostedZoneId]' --output text)"
+
+#           if [ "${DEPLOYMENT_TARGET}" = "green" ]; then
+#             BLUE_WEIGHT=100
+#             GREEN_WEIGHT=0
+#           else
+#             BLUE_WEIGHT=0
+#             GREEN_WEIGHT=100
+#           fi
+
+#           ROLLED_BACK=0
+#           rollback() {
+#             if [ "${ROLLED_BACK}" -eq 1 ]; then
+#               return
+#             fi
+#             ROLLED_BACK=1
+#             echo "Rolling traffic back to blue."
+#             aws route53 change-resource-record-sets \
+#               --hosted-zone-id "${ZONE_ID}" \
+#               --change-batch "$(jq -n \
+#                 --arg record_name "${ROUTE53_RECORD_NAME}" \
+#                 --arg blue_dns "dualstack.${BLUE_ALB_DNS}" \
+#                 --arg blue_zone "${BLUE_ALB_ZONE_ID}" \
+#                 --arg green_dns "dualstack.${GREEN_ALB_DNS}" \
+#                 --arg green_zone "${GREEN_ALB_ZONE_ID}" \
+#                 --argjson blue_weight "${BLUE_WEIGHT}" \
+#                 --argjson green_weight "${GREEN_WEIGHT}" \
+#                 '{Changes: [{Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "blue-region", Weight: $blue_weight, AliasTarget: {DNSName: $blue_dns, HostedZoneId: $blue_zone, EvaluateTargetHealth: true}}}, {Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "green-region", Weight: $green_weight, AliasTarget: {DNSName: $green_dns, HostedZoneId: $green_zone, EvaluateTargetHealth: true}}}]}')"
+#           }
+#                   trap 'status=$?; if [ "${status}" -ne 0 ]; then rollback; fi; exit "${status}"' EXIT
+
+#           for attempt in $(seq 1 10); do
+#             BLUE_STATE=$(aws cloudwatch describe-alarms --region us-east-1 \
+#               --alarm-names "${BLUE_ALARM_NAME}" \
+#               --query 'MetricAlarms[0].StateValue' --output text)
+#             GREEN_STATE=$(aws cloudwatch describe-alarms --region eu-north-1 \
+#               --alarm-names "${GREEN_ALARM_NAME}" \
+#               --query 'MetricAlarms[0].StateValue' --output text)
+#             echo "Bake check ${attempt}/10: blue=${BLUE_STATE}, green=${GREEN_STATE}"
+
+#             if [ "${BLUE_STATE}" = "ALARM" ] || [ "${GREEN_STATE}" = "ALARM" ]; then
+#               rollback
+#               exit 1
+#             fi
+
+#             if [ "${attempt}" -lt 10 ]; then
+#               sleep 30
+#             fi
+#           done
+
+#       - name: Promote target region to 100% traffic
+#         if: env.RELEASE_MODE == 'canary'
+#         run: |
+#           set -euo pipefail
+#           ZONE_ID=$(aws route53 list-hosted-zones-by-name \
+#             --dns-name "${ROUTE53_ZONE_NAME}." \
+#             --query 'HostedZones[0].Id' --output text | sed 's#/$##')
+#           read -r BLUE_ALB_DNS BLUE_ALB_ZONE_ID <<< "$(aws elbv2 describe-load-balancers \
+#             --region us-east-1 --names "${BLUE_ALB_NAME}" \
+#             --query 'LoadBalancers[0].[DNSName,CanonicalHostedZoneId]' --output text)"
+#           read -r GREEN_ALB_DNS GREEN_ALB_ZONE_ID <<< "$(aws elbv2 describe-load-balancers \
+#             --region eu-north-1 --names "${GREEN_ALB_NAME}" \
+#             --query 'LoadBalancers[0].[DNSName,CanonicalHostedZoneId]' --output text)"
+#           if [ "${DEPLOYMENT_TARGET}" = "green" ]; then
+#             BLUE_WEIGHT=0
+#             GREEN_WEIGHT=100
+#           else
+#             BLUE_WEIGHT=100
+#             GREEN_WEIGHT=0
+#           fi
+#           aws route53 change-resource-record-sets \
+#             --hosted-zone-id "${ZONE_ID}" \
+#             --change-batch "$(jq -n \
+#               --arg record_name "${ROUTE53_RECORD_NAME}" \
+#               --arg blue_dns "dualstack.${BLUE_ALB_DNS}" \
+#               --arg blue_zone "${BLUE_ALB_ZONE_ID}" \
+#               --arg green_dns "dualstack.${GREEN_ALB_DNS}" \
+#                 --arg green_zone "${GREEN_ALB_ZONE_ID}" \
+#                 --argjson blue_weight "${BLUE_WEIGHT}" \
+#                 --argjson green_weight "${GREEN_WEIGHT}" \
+#                 '{Changes: [{Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "blue-region", Weight: $blue_weight, AliasTarget: {DNSName: $blue_dns, HostedZoneId: $blue_zone, EvaluateTargetHealth: true}}}, {Action: "UPSERT", ResourceRecordSet: {Name: $record_name, Type: "A", SetIdentifier: "green-region", Weight: $green_weight, AliasTarget: {DNSName: $green_dns, HostedZoneId: $green_zone, EvaluateTargetHealth: true}}}]}')"
+#               aws ssm put-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --type String --value "${DEPLOYMENT_TARGET}" --overwrite

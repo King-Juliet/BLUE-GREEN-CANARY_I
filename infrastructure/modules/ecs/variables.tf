@@ -55,7 +55,7 @@ variable "container_image" {
 
 variable "container_environment" {
   description = "Container environment variables"
-  type        = list(object({
+  type = list(object({
     name  = string
     value = string
   }))

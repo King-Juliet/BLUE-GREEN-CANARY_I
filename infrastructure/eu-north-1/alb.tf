@@ -48,14 +48,14 @@ resource "aws_vpc_security_group_egress_rule" "ecs_all" {
 module "alb" {
   source = "../modules/alb"
 
-  project              = local.project
-  environment          = local.environment
-  owner                = local.owner
-  aws_apn_id           = local.aws_apn_id
-  region               = local.aws_region
-  vpc_id               = aws_vpc.main.id
-  public_subnet_ids    = module.public_subnets.subnet_ids
-  security_group_ids   = [aws_security_group.alb.id]
+  project            = local.project
+  environment        = local.environment
+  owner              = local.owner
+  aws_apn_id         = local.aws_apn_id
+  region             = local.aws_region
+  vpc_id             = aws_vpc.main.id
+  public_subnet_ids  = module.public_subnets.subnet_ids
+  security_group_ids = [aws_security_group.alb.id]
   target_groups = {
     frontend = {
       name              = "${local.project}-${local.environment}-frontend-tg"

@@ -43,9 +43,9 @@ variable "security_group_ids" {
 variable "target_groups" {
   description = "Target groups and health-check settings for the regional services"
   type = map(object({
-    name                = string
-    port                = number
-    health_check_path   = string
+    name              = string
+    port              = number
+    health_check_path = string
   }))
 }
 

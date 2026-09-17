@@ -11,7 +11,7 @@ data "aws_iam_policy_document" "ecs_task_execution" {
 
 # IAM role used by ECS to pull images and publish task logs.
 resource "aws_iam_role" "ecs_execution" {
-  name = "${local.project}-${local.environment}-ecs-execution-role"
+  name               = "${local.project}-${local.environment}-ecs-execution-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_execution.json
 }
 
@@ -38,7 +38,7 @@ resource "aws_iam_role_policy" "ecs_task_ssm" {
 
 # IAM role assumed by the running application containers.
 resource "aws_iam_role" "ecs_task" {
-  name = "${local.project}-${local.environment}-ecs-task-role"
+  name               = "${local.project}-${local.environment}-ecs-task-role"
   assume_role_policy = data.aws_iam_policy_document.ecs_task_execution.json
 }
 
@@ -46,17 +46,17 @@ resource "aws_iam_role" "ecs_task" {
 module "frontend_ecs" {
   source = "../modules/ecs"
 
-  project                = local.project
-  environment            = local.environment
-  workload_name          = "${local.project}-${local.environment}-frontend"
-  owner                  = local.owner
-  aws_apn_id             = local.aws_apn_id
-  region                 = local.aws_region
-  app_port               = local.app_port
-  container_image        = "${module.ecr.repository_url}:frontend-${local.environment}"
-  execution_role_arn     = aws_iam_role.ecs_execution.arn
-  task_role_arn          = aws_iam_role.ecs_task.arn
-  log_group_name         = module.cloudwatch.log_group_name
+  project            = local.project
+  environment        = local.environment
+  workload_name      = "${local.project}-${local.environment}-frontend"
+  owner              = local.owner
+  aws_apn_id         = local.aws_apn_id
+  region             = local.aws_region
+  app_port           = local.app_port
+  container_image    = "${module.ecr.repository_url}:frontend-${local.environment}"
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+  log_group_name     = module.cloudwatch.log_group_name
 }
 
 
@@ -64,17 +64,17 @@ module "frontend_ecs" {
 module "backend_ecs" {
   source = "../modules/ecs"
 
-  project                = local.project
-  environment            = local.environment
-  workload_name          = "${local.project}-${local.environment}-backend"
-  owner                  = local.owner
-  aws_apn_id             = local.aws_apn_id
-  region                 = local.aws_region
-  app_port               = local.app_port
-  container_image        = "${module.ecr.repository_url}:backend-${local.environment}"
-  execution_role_arn     = aws_iam_role.ecs_execution.arn
-  task_role_arn          = aws_iam_role.ecs_task.arn
-  log_group_name         = module.cloudwatch.log_group_name
+  project            = local.project
+  environment        = local.environment
+  workload_name      = "${local.project}-${local.environment}-backend"
+  owner              = local.owner
+  aws_apn_id         = local.aws_apn_id
+  region             = local.aws_region
+  app_port           = local.app_port
+  container_image    = "${module.ecr.repository_url}:backend-${local.environment}"
+  execution_role_arn = aws_iam_role.ecs_execution.arn
+  task_role_arn      = aws_iam_role.ecs_task.arn
+  log_group_name     = module.cloudwatch.log_group_name
   container_environment = [
     { name = "PORT", value = tostring(local.app_port) },
     { name = "AWS_REGION", value = local.aws_region },

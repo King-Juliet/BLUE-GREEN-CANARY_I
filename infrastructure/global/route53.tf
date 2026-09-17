@@ -6,10 +6,10 @@ resource "aws_route53_zone" "main" {
   name = "example.com"
 
   tags = {
-    Name        = "example-com-zone"
-    Owner       = "platform-team"
-    Project     = "bluegreen-canary"
-    Environment = "shared"
+    Name         = "example-com-zone"
+    Owner        = "platform-team"
+    Project      = "bluegreen-canary"
+    Environment  = "shared"
     "aws-apn-id" = "65jiyh5muw5om1whvryxkbpyd"
   }
 }
@@ -28,7 +28,7 @@ resource "aws_route53_record" "blue" {
 
   alias {
     name                   = "dualstack.${var.blue_alb_dns_name}"
-    zone_id               = var.blue_alb_zone_id
+    zone_id                = var.blue_alb_zone_id
     evaluate_target_health = true
   }
 }
@@ -47,7 +47,7 @@ resource "aws_route53_record" "green" {
 
   alias {
     name                   = "dualstack.${var.green_alb_dns_name}"
-    zone_id               = var.green_alb_zone_id
+    zone_id                = var.green_alb_zone_id
     evaluate_target_health = true
   }
 }

@@ -6,10 +6,10 @@ resource "aws_vpc" "vpc" {
   enable_dns_hostnames = true
 
   tags = {
-    Name        = "${var.project}-vpc"
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Name         = "${var.project}-vpc"
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
   }
 }

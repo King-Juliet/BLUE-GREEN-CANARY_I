@@ -10,13 +10,13 @@ resource "aws_sns_topic" "deploy_notifications" {
 module "cloudwatch" {
   source = "../modules/cloudwatch"
 
-  project            = local.project
-  environment        = local.environment
-  owner              = local.owner
-  aws_apn_id         = local.aws_apn_id
-  alb_arn            = module.alb.alb_arn
-  log_group_name     = "/ecs/${local.project}/${local.environment}"
-  alarm_name         = "${local.project}-${local.environment}-alb-5xx"
-  sns_topic_arn      = aws_sns_topic.deploy_notifications.arn
+  project           = local.project
+  environment       = local.environment
+  owner             = local.owner
+  aws_apn_id        = local.aws_apn_id
+  alb_arn           = module.alb.alb_arn
+  log_group_name    = "/ecs/${local.project}/${local.environment}"
+  alarm_name        = "${local.project}-${local.environment}-alb-5xx"
+  sns_topic_arn     = aws_sns_topic.deploy_notifications.arn
   alb_5xx_threshold = 5
 }

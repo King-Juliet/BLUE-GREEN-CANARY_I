@@ -8,10 +8,10 @@ resource "aws_subnet" "subnet" {
   map_public_ip_on_launch = var.map_public_ip_on_launch
 
   tags = {
-    Name        = "${var.project}-${var.name_prefix}-${count.index + 1}"
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Name         = "${var.project}-${var.name_prefix}-${count.index + 1}"
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
   }
 }

@@ -9,10 +9,10 @@ resource "aws_ecs_cluster" "main" {
   }
 
   tags = {
-    Name        = "${var.workload_name}-cluster"
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Name         = "${var.workload_name}-cluster"
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
   }
 }
@@ -51,10 +51,10 @@ resource "aws_ecs_task_definition" "app" {
   ])
 
   tags = {
-    Name        = "${var.workload_name}-task"
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Name         = "${var.workload_name}-task"
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
   }
 }

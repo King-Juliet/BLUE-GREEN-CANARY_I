@@ -13,11 +13,11 @@ resource "aws_ecr_repository" "repository" {
   }
 
   tags = {
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
-    Region      = var.region
+    Region       = var.region
   }
 }
 

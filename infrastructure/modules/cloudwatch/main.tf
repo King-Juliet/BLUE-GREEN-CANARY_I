@@ -4,9 +4,9 @@ resource "aws_cloudwatch_log_group" "cloudwatch_log_group" {
   name = var.log_group_name
 
   tags = {
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
   }
 }
@@ -19,7 +19,7 @@ resource "aws_cloudwatch_metric_alarm" "cloudwatch_alarm" {
   metric_name         = "HTTPCode_Target_5XX_Count"
   namespace           = "AWS/ApplicationELB"
   period              = "60"
-  statistic          = "Sum"
+  statistic           = "Sum"
   threshold           = var.alb_5xx_threshold
   alarm_description   = "ALB 5xx alarm for canary rollback decisions"
   treat_missing_data  = "notBreaching"

@@ -7,10 +7,10 @@ resource "aws_ssm_parameter" "ssm_parameter" {
   value       = var.password
 
   tags = {
-    Name        = var.project
-    Owner       = var.owner
-    Project     = var.project
-    Environment = var.environment
+    Name         = var.project
+    Owner        = var.owner
+    Project      = var.project
+    Environment  = var.environment
     "aws-apn-id" = var.aws_apn_id
   }
 }

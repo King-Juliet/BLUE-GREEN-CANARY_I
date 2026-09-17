@@ -22,10 +22,10 @@ module "ssm_db_password" {
 module "database" {
   source = "../modules/database"
 
-  project             = local.project
-  environment         = local.environment
-  owner               = local.owner
-  aws_apn_id          = local.aws_apn_id
+  project            = local.project
+  environment        = local.environment
+  owner              = local.owner
+  aws_apn_id         = local.aws_apn_id
   private_subnet_ids = module.private_subnets.subnet_ids
   security_group_ids = [aws_security_group.rds.id]
   db_username        = "appuser"

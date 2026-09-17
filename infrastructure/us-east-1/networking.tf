@@ -5,12 +5,12 @@ resource "aws_vpc" "main" {
   enable_dns_hostnames = true
 
   tags = {
-    Name        = "${local.project}-vpc"
-    Owner       = local.owner
-    Project     = local.project
-    Environment = local.environment
+    Name         = "${local.project}-vpc"
+    Owner        = local.owner
+    Project      = local.project
+    Environment  = local.environment
     "aws-apn-id" = local.aws_apn_id
-    Region      = local.aws_region
+    Region       = local.aws_region
   }
 }
 
@@ -19,12 +19,12 @@ resource "aws_internet_gateway" "main" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name        = "${local.project}-igw"
-    Owner       = local.owner
-    Project     = local.project
-    Environment = local.environment
+    Name         = "${local.project}-igw"
+    Owner        = local.owner
+    Project      = local.project
+    Environment  = local.environment
     "aws-apn-id" = local.aws_apn_id
-    Region      = local.aws_region
+    Region       = local.aws_region
   }
 }
 
@@ -32,14 +32,14 @@ resource "aws_internet_gateway" "main" {
 module "public_subnets" {
   source = "../modules/subnet"
 
-  project                = local.project
-  environment            = local.environment
-  owner                  = local.owner
-  aws_apn_id             = local.aws_apn_id
-  vpc_id                 = aws_vpc.main.id
-  name_prefix            = "public"
-  subnet_cidrs           = ["10.10.1.0/24", "10.10.2.0/24"]
-  availability_zones     = ["us-east-1a", "us-east-1b"]
+  project                 = local.project
+  environment             = local.environment
+  owner                   = local.owner
+  aws_apn_id              = local.aws_apn_id
+  vpc_id                  = aws_vpc.main.id
+  name_prefix             = "public"
+  subnet_cidrs            = ["10.10.1.0/24", "10.10.2.0/24"]
+  availability_zones      = ["us-east-1a", "us-east-1b"]
   map_public_ip_on_launch = true
 }
 
@@ -47,14 +47,14 @@ module "public_subnets" {
 module "private_subnets" {
   source = "../modules/subnet"
 
-  project                = local.project
-  environment            = local.environment
-  owner                  = local.owner
-  aws_apn_id             = local.aws_apn_id
-  vpc_id                 = aws_vpc.main.id
-  name_prefix            = "private"
-  subnet_cidrs           = ["10.10.11.0/24", "10.10.12.0/24"]
-  availability_zones     = ["us-east-1a", "us-east-1b"]
+  project                 = local.project
+  environment             = local.environment
+  owner                   = local.owner
+  aws_apn_id              = local.aws_apn_id
+  vpc_id                  = aws_vpc.main.id
+  name_prefix             = "private"
+  subnet_cidrs            = ["10.10.11.0/24", "10.10.12.0/24"]
+  availability_zones      = ["us-east-1a", "us-east-1b"]
   map_public_ip_on_launch = false
 }
 
@@ -68,10 +68,10 @@ resource "aws_route_table" "public" {
   }
 
   tags = {
-    Name        = "${local.project}-public-route-table"
-    Owner       = local.owner
-    Project     = local.project
-    Environment = local.environment
+    Name         = "${local.project}-public-route-table"
+    Owner        = local.owner
+    Project      = local.project
+    Environment  = local.environment
     "aws-apn-id" = local.aws_apn_id
   }
 }
@@ -88,10 +88,10 @@ resource "aws_route_table" "private" {
   vpc_id = aws_vpc.main.id
 
   tags = {
-    Name        = "${local.project}-private-route-table"
-    Owner       = local.owner
-    Project     = local.project
-    Environment = local.environment
+    Name         = "${local.project}-private-route-table"
+    Owner        = local.owner
+    Project      = local.project
+    Environment  = local.environment
     "aws-apn-id" = local.aws_apn_id
   }
 }
