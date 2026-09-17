@@ -18,7 +18,7 @@ resource "aws_route53_record" "blue" {
   zone_id = aws_route53_zone.main.zone_id
   name    = "app.example.com"
   type    = "A"
-  ttl     = 60
+  #ttl     = 60
 
   weighted_routing_policy {
     weight = 100
@@ -37,7 +37,7 @@ resource "aws_route53_record" "green" {
   zone_id = aws_route53_zone.main.zone_id
   name    = "app.example.com"
   type    = "A"
-  ttl     = 60
+  #ttl     = 60
 
   weighted_routing_policy {
     weight = 0
