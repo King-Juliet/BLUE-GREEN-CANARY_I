@@ -3,10 +3,10 @@
 # This can be used as the global canary controller instead of ALB weighted target groups.
 
 resource "aws_route53_zone" "main" {
-  name = "example.com"
+  name = "bluegreen-canary.test"
 
   tags = {
-    Name         = "example-com-zone"
+    Name         = "bluegreen-canary-test-zone"
     Owner        = "platform-team"
     Project      = "bluegreen-canary"
     Environment  = "shared"
@@ -16,7 +16,7 @@ resource "aws_route53_zone" "main" {
 
 resource "aws_route53_record" "blue" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "app.example.com"
+  name    = "app.bluegreen-canary.test"
   type    = "A"
   #ttl     = 60
 
@@ -35,7 +35,7 @@ resource "aws_route53_record" "blue" {
 
 resource "aws_route53_record" "green" {
   zone_id = aws_route53_zone.main.zone_id
-  name    = "app.example.com"
+  name    = "app.bluegreen-canary.test"
   type    = "A"
   #ttl     = 60
 
