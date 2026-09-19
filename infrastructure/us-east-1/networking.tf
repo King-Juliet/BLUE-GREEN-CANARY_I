@@ -179,3 +179,16 @@ resource "aws_vpc_endpoint" "s3" {
     Name = "${local.project}-s3-endpoint"
   }
 }
+
+resource "aws_vpc_endpoint" "ssm" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${local.aws_region}.ssm"
+  vpc_endpoint_type   = "Interface"
+  subnet_ids          = module.private_subnets.subnet_ids
+  security_group_ids  = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled = true
+
+  tags = {
+    Name = "${local.project}-ssm-endpoint"
+  }
+}
