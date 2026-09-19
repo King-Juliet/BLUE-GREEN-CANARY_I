@@ -58,12 +58,12 @@ module "alb" {
   security_group_ids = [aws_security_group.alb.id]
   target_groups = {
     frontend = {
-      name              = "${local.project}-${local.environment}-frontend-tg"
+      name              = "${local.environment}-frontend-tg"
       port              = local.app_port
       health_check_path = local.health_check_path
     }
     backend = {
-      name              = "${local.project}-${local.environment}-backend-tg"
+      name              = "${local.environment}-backend-tg"
       port              = local.app_port
       health_check_path = local.health_check_path
     }
