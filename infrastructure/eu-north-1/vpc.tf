@@ -102,3 +102,81 @@ resource "aws_route_table_association" "private" {
   subnet_id      = module.private_subnets.subnet_ids[count.index]
   route_table_id = aws_route_table.private.id
 }
+
+
+
+# vpc endpoints configurations
+# Security group for VPC endpoints — allows the ECS tasks to reach them over HTTPS.
+resource "aws_security_group" "vpc_endpoints" {
+  name        = "${local.project}-${local.environment}-vpce-sg"
+  description = "Security group for VPC interface endpoints"
+  vpc_id      = aws_vpc.main.id
+
+  tags = {
+    Name        = "${local.project}-vpce-sg"
+    Owner       = local.owner
+    Project     = local.project
+    Environment = local.environment
+    "aws-apn-id" = local.aws_apn_id
+  }
+}
+
+resource "aws_vpc_security_group_ingress_rule" "vpce_from_ecs" {
+  security_group_id            = aws_security_group.vpc_endpoints.id
+  referenced_security_group_id = aws_security_group.ecs.id
+  from_port                    = 443
+  to_port                      = 443
+  ip_protocol                  = "tcp"
+}
+
+# Interface endpoints — ECR API, ECR image layer pulls, CloudWatch Logs.
+resource "aws_vpc_endpoint" "ecr_api" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${local.aws_region}.ecr.api"
+  vpc_endpoint_type    = "Interface"
+  subnet_ids           = module.private_subnets.subnet_ids
+  security_group_ids   = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled  = true
+
+  tags = {
+    Name = "${local.project}-ecr-api-endpoint"
+  }
+}
+
+resource "aws_vpc_endpoint" "ecr_dkr" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${local.aws_region}.ecr.dkr"
+  vpc_endpoint_type    = "Interface"
+  subnet_ids           = module.private_subnets.subnet_ids
+  security_group_ids   = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled  = true
+
+  tags = {
+    Name = "${local.project}-ecr-dkr-endpoint"
+  }
+}
+
+resource "aws_vpc_endpoint" "logs" {
+  vpc_id              = aws_vpc.main.id
+  service_name        = "com.amazonaws.${local.aws_region}.logs"
+  vpc_endpoint_type    = "Interface"
+  subnet_ids           = module.private_subnets.subnet_ids
+  security_group_ids   = [aws_security_group.vpc_endpoints.id]
+  private_dns_enabled  = true
+
+  tags = {
+    Name = "${local.project}-logs-endpoint"
+  }
+}
+
+# Gateway endpoint — S3, where ECR actually stores image layers. Free, route-table based, not SG based.
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${local.aws_region}.s3"
+  vpc_endpoint_type  = "Gateway"
+  route_table_ids    = [aws_route_table.private.id]
+
+  tags = {
+    Name = "${local.project}-s3-endpoint"
+  }
+}
