@@ -15,7 +15,7 @@ resource "aws_db_subnet_group" "database_subnet_group" {
 
 resource "aws_db_parameter_group" "database" {
   name   = "${var.project}-${var.environment}-postgres15-params"
-  family = "postgres15"
+  family = "postgres18"
 
   parameter {
     name         = "rds.force_ssl"
