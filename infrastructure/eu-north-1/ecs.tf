@@ -106,6 +106,9 @@ resource "aws_ecs_service" "frontend" {
     container_name   = "app"
     container_port   = local.app_port
   }
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
 }
 
 # Green backend ECS service receiving /api/* traffic from the ALB.
@@ -126,6 +129,9 @@ resource "aws_ecs_service" "backend" {
     target_group_arn = module.alb.target_group_arns["backend"]
     container_name   = "app"
     container_port   = local.app_port
+  }
+  lifecycle {
+    ignore_changes = [task_definition]
   }
 }
 
