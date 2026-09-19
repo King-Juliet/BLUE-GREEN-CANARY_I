@@ -3,6 +3,7 @@
 # (and CI) resolves the exact same provider versions.
 **/.terraform/
 *.tfstate
+*.terraform.lock.hcl
 *.tfstate.*
 errored.tfstate
 crash.log
