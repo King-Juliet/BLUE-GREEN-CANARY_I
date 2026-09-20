@@ -55,7 +55,7 @@ app.get('/api/schema-registry', (req, res) => {
 });
 
 app.post('/api/orders', async (req, res) => {
-  const { customerName, customerEmail, city, productId } = req.body;
+  const { customerName, customerEmail, city, productId, discountCode } = req.body;
 
   if (!customerName || !customerEmail || !city || !productId) {
     return res.status(400).json({ message: 'Missing required fields' });
@@ -67,14 +67,37 @@ app.post('/api/orders', async (req, res) => {
   }
 
   try {
-    const orderResult = await pool.query(
-      `
-        INSERT INTO orders (customer_name, customer_email, city, product_id, product_name, price, status, schema_version)
-        VALUES ($1, $2, $3, $4, $5, $6, 'created', 'orders.v1')
-        RETURNING id
-      `,
-      [customerName, customerEmail, city, product.id, product.name, product.price]
-    );
+    let orderResult;
+    let schemaVersionUsed = 'orders.v2';
+
+    try {
+      // Try the current (v2) shape first — includes the optional discount_code column.
+      orderResult = await pool.query(
+        `
+          INSERT INTO orders (customer_name, customer_email, city, product_id, product_name, price, status, schema_version, discount_code)
+          VALUES ($1, $2, $3, $4, $5, $6, 'created', 'orders.v2', $7)
+          RETURNING id
+        `,
+        [customerName, customerEmail, city, product.id, product.name, product.price, discountCode || null]
+      );
+    } catch (schemaError) {
+      // 42703 = undefined_column: this region's database hasn't been migrated to v2 yet.
+      // Fall back to the v1 shape instead of failing the request outright — this is the
+      // BACKWARD-compatibility behavior schemaRegistry.compatibilityPolicy declares.
+      if (schemaError.code !== '42703') {
+        throw schemaError;
+      }
+
+      schemaVersionUsed = 'orders.v1';
+      orderResult = await pool.query(
+        `
+          INSERT INTO orders (customer_name, customer_email, city, product_id, product_name, price, status, schema_version)
+          VALUES ($1, $2, $3, $4, $5, $6, 'created', 'orders.v1')
+          RETURNING id
+        `,
+        [customerName, customerEmail, city, product.id, product.name, product.price]
+      );
+    }
 
     const createdOrder = {
       id: orderResult.rows[0].id,
@@ -85,7 +108,7 @@ app.post('/api/orders', async (req, res) => {
       productName: product.name,
       price: product.price,
       status: 'created',
-      schemaVersion: 'orders.v1'
+      schemaVersion: schemaVersionUsed
     };
 
     res.status(201).json({ order: createdOrder, compatibility: schemaRegistry.compatibilityPolicy });
