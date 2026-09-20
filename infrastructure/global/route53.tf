@@ -1,7 +1,7 @@
 # Global routing layer for cross-region canary
 # Route53 weighted routing is used to split traffic between the blue region and green region.
 # This can be used as the global canary controller instead of ALB weighted target groups.
-
+#
 resource "aws_route53_zone" "main" {
   name = "bluegreen-canary.test"
 
