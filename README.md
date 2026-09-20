@@ -1,26 +1,75 @@
-# Cross-Region Blue-Green Canary Deployment Scaffold
+# Cross-Region Blue/Green Canary Deployment
 
-This repository demonstrates a GitHub Actions driven AWS ECS Fargate deployment model where the blue service is deployed in the us-east-1 region and the green service is deployed in the eu-north-1 region. The traffic split is handled globally by Route 53 weighted records, which makes the model a true cross-region blue/green canary instead of a one-region ALB weighted target-group pattern.
+Blue/green deployment with automated canary traffic shifting, across two live AWS regions (`us-east-1` = blue, `eu-north-1` = green), controlled by GitHub Actions + Route 53 weighted DNS. The ecommerce app is just the payload; the deployment pattern is the point.
 
-## Top-level folders
+**Prerequisites:** an AWS account with IAM admin rights, Terraform `>= 1.10.5` (earlier versions don't support the S3 backend locking this project uses), AWS CLI v2, Docker, and `jq`.
 
-- `applications/` : separate frontend and backend application source and container builds.
-- `infrastructure/modules/` : reusable Terraform modules for VPC, subnets, ALB, ECS, ECR, database, SSM, and CloudWatch.
-- `infrastructure/us-east-1/` : Terraform files that implement the blue AWS region resources in us-east-1.
-- `infrastructure/eu-north-1/` : Terraform files that implement the green AWS region resources in eu-north-1.
-- `infrastructure/global/` : Terraform files that model a global routing layer using Route 53 weighted records.
-- `.github/workflows/` : GitHub Actions deployment workflow.
+## Fork & set up
 
-## Resource flow
+1. **Fork this repo**, then clone your fork.
+2. **Create your own Terraform state bucket** (S3 names are globally unique, so you can't reuse the original):
+```bash
+   aws s3api create-bucket --bucket <your-bucket> --region us-east-1
+```
+   Update the `bucket` value in `infrastructure/us-east-1/backend.tf` , `infrastructure/eu-north-1/backend.tf` and `infrastructure/us-east-1/backend.tf`.
+3. **Set up OIDC** so GitHub authenticates to AWS with no stored keys: create an OIDC provider (`token.actions.githubusercontent.com`, audience `sts.amazonaws.com`), then a role trusting it, scoped to `repo:<you>/<repo>:*`. **Gotcha:** repos created after July 2026 get an immutable `owner@id/repo@id` subject claim — if auth fails, check CloudTrail's `AssumeRoleWithWebIdentity` event for the real value and match it exactly. Attach necessary permissions to the policy attached to the OIDC.
+4. **Set repo variables** (Settings → Secrets and variables → Actions → Variables, and under the `production` Environment): `AWS_ROLE_ARN`, `TF_STATE_BUCKET`, `ROUTE53_ZONE_NAME` (e.g. `bluegreen-canary.test`), `ROUTE53_RECORD_NAME` (e.g. `app.bluegreen-canary.test`), `BLUE_REPOSITORY_URI`/`GREEN_REPOSITORY_URI`, `BLUE_ALB_NAME`/`GREEN_ALB_NAME`, `BLUE_ALARM_NAME`/`GREEN_ALARM_NAME`. 
+The last six follow Terraform's own naming pattern (${project}-${environment}-..., from infrastructure/*/locals.tf) — with this repo's default project/environment values, they resolve to:
 
-1. Each regional stack creates its VPC, public/private subnets, internet gateway, and route tables.
-2. Route 53 points to the regional public ALB, whose default route serves the frontend and whose `/api/*` rule forwards to the backend.
-3. The us-east-1 stack runs the blue frontend and blue backend services; the eu-north-1 stack runs the green frontend and green backend services.
-4. Each regional stack creates an ECR repository in its own AWS region and stores separate frontend and backend image tags there.
-5. Region-specific PostgreSQL RDS instances are placed in private subnets through the database module.
-6. Region-specific CloudWatch logs, SNS topics, and alarms are created through the CloudWatch module and regional monitoring files.
-7. The global layer uses Route 53 weighted records to split traffic between the blue ALB in us-east-1 and the green ALB in eu-north-1.
+BLUE_REPOSITORY_URI → <account-id>.dkr.ecr.us-east-1.amazonaws.com/bluegreen-canary-blue
+GREEN_REPOSITORY_URI → <account-id>.dkr.ecr.eu-north-1.amazonaws.com/bluegreen-canary-green
+BLUE_ALB_NAME → bluegreen-canary-blue-blue-alb
+GREEN_ALB_NAME → bluegreen-canary-green-green-alb
+BLUE_ALARM_NAME → bluegreen-canary-blue-blue-alb-5xx
+GREEN_ALARM_NAME → bluegreen-canary-green-green-alb-5xx
 
-## Cross-region canary deployment concept
+## Run it
 
-The GitHub Actions workflow builds separate frontend and backend images and pushes them to the regional ECR repository selected for the release. The first automatic deployment provisions both regional stacks, deploys both blue and green application stacks, and leaves Route 53 at 100% blue and 0% green. It records blue as the active region in SSM. Each later automatic push deploys only the inactive region, canaries traffic toward it at 90/10, and promotes it to 100% after the bake period. If an alarm enters ALARM state, the workflow restores 100% traffic to the previously active region. This alternates naturally: blue -> green, then green -> blue.
+Push to `main`. CI validates the code and Terraform; CD then provisions both regions and deploys both — the first run always leaves 100% of traffic on blue. Watch it under the **Actions** tab.
+
+Then, once per region, initialize the database — the schema isn't applied automatically:
+```bash
+psql "host=<rds-endpoint> dbname=appdb user=appuser sslmode=disable" -f applications/backend/schema.sql
+```
+
+## Verify the canary
+
+Every push *after* the first is a canary run: 10% of traffic shifts to the idle region, holds for ~5 minutes while a CloudWatch alarm is watched, then promotes to 100% or rolls back automatically. Watch it with this — the exact command used to verify it, run at three points:
+
+```bash
+ZONE_ID=$(aws route53 list-hosted-zones-by-name --dns-name "bluegreen-canary.test." --query 'HostedZones[0].Id' --output text)
+aws route53 list-resource-record-sets --hosted-zone-id "$ZONE_ID" \
+  --query "ResourceRecordSets[?Name=='app.bluegreen-canary.test.']"
+```
+
+| When | What you'll see |
+|---|---|
+| Initial deployment, before any canary | blue `Weight: 100`, green `Weight: 0` |
+| Mid-canary, right after pushing a change | blue `Weight: 90`, green `Weight: 10` |
+| After the bake window completes clean | blue `Weight: 0`, green `Weight: 100` |
+
+This bypasses public DNS entirely — `.test` is IANA-reserved and never publicly resolvable — so it works from anywhere with AWS CLI access, no domain setup needed.
+
+## Cost & cleanup
+
+Two regions, two RDS instances, up to 8 VPC endpoints, two ALBs — real, billable resources. Destroy when done:
+```bash
+terraform -chdir=infrastructure/global destroy -auto-approve
+terraform -chdir=infrastructure/us-east-1 destroy -auto-approve
+terraform -chdir=infrastructure/eu-north-1 destroy -auto-approve
+```
+
+## Known gaps
+
+- Database schema must be applied manually (above) — not yet part of the pipeline.
+- GitHub variables mirroring Terraform-generated names aren't auto-synced — a Terraform rename needs a manual update here too.
+
+## Troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `Not authorized to perform sts:AssumeRoleWithWebIdentity` | Check CloudTrail's `AssumeRoleWithWebIdentity` event for the real `sub` claim, match the trust policy to it |
+| Backend `db: "not-ready"` (hangs) | Missing VPC interface endpoint for `com.amazonaws.<region>.ssm` |
+| Backend `db: "down"` | RDS defaults to requiring SSL on Postgres 15+; add a parameter group with `rds.force_ssl = 0`, reboot if the DB already existed |
+| `RepositoryNotEmptyException` on destroy | Add `force_delete = true` to the ECR repository resource |
+| `tag invalid ... immutable` on push | Push a new commit instead of re-running a failed job — reruns reuse the same image tag |
