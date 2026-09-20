@@ -50,6 +50,13 @@ aws route53 list-resource-record-sets --hosted-zone-id "$ZONE_ID" \
 
 This bypasses public DNS entirely — `.test` is IANA-reserved and never publicly resolvable — so it works from anywhere with AWS CLI access, no domain setup needed.
 
+## How DB backward-compatibility is handled during mixed-traffic windows
+
+Blue and green use separate databases, so no shared schema is ever hit by two live versions at once.
+The real risk: new code reaching a region before that region's database is migrated.
+schema-registry.js handles this via a BACKWARD policy — schema changes are additive-only, and the app tolerates missing fields.
+This decouples code deploys from DB migrations into independently-orderable steps, which a live rollout needs.
+
 ## Cost & cleanup
 
 Two regions, two RDS instances, up to 8 VPC endpoints, two ALBs — real, billable resources. Destroy when done:
