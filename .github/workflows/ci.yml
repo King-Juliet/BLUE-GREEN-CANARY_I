@@ -40,10 +40,15 @@ jobs:
       - name: Check JavaScript syntax
         run: |
           node --check applications/backend/server.js
+          node --check applications/backend/migrate.js
           node --check applications/frontend/app.js
+          bash -n scripts/run-migration.sh
 
       - name: Run backend tests
         run: npm --prefix applications/backend test
+
+      - name: Check schema compatibility
+        run: node applications/backend/scripts/check-schema-compat.js
 
       - name: Build frontend image
         run: docker build -f applications/frontend/Dockerfile applications/frontend

@@ -25,7 +25,7 @@ resource "aws_ecr_repository" "repository" {
 # Retain recent images while removing untagged layers to control registry storage.
 resource "aws_ecr_lifecycle_policy" "repository" {
   repository = aws_ecr_repository.repository.name
-  
+
 
   policy = jsonencode({
     rules = [

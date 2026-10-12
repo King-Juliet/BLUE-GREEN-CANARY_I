@@ -42,6 +42,54 @@ resource "aws_iam_role" "ecs_task" {
   assume_role_policy = data.aws_iam_policy_document.ecs_task_execution.json
 }
 
+
+# One-off task that creates/updates the database tables. The CD pipeline registers a
+# new revision with the release image and runs it BEFORE deploying the backend.
+# The image below is only a placeholder, like the service task definitions.
+resource "aws_ecs_task_definition" "migrate" {
+  family                   = "${local.project}-${local.environment}-migrate-task"
+  cpu                      = "256"
+  memory                   = "512"
+  network_mode             = "awsvpc"
+  requires_compatibilities = ["FARGATE"]
+  execution_role_arn       = aws_iam_role.ecs_execution.arn
+  task_role_arn            = aws_iam_role.ecs_task.arn
+
+  container_definitions = jsonencode([
+    {
+      name      = "app"
+      image     = "${module.ecr.repository_url}:backend-${local.environment}"
+      essential = true
+      command   = ["node", "migrate.js"]
+      environment = [
+        { name = "AWS_REGION", value = local.aws_region },
+        { name = "DB_HOST", value = module.database.db_endpoint },
+        { name = "DB_PORT", value = tostring(module.database.db_port) },
+        { name = "DB_USER", value = "appuser" },
+        { name = "DB_NAME", value = "appdb" },
+        { name = "DB_CREDENTIALS_SSM_NAME", value = "/bluegreen-canary/${local.environment}/${local.aws_region}/database/password" }
+      ]
+      logConfiguration = {
+        logDriver = "awslogs"
+        options = {
+          awslogs-group         = module.cloudwatch.log_group_name
+          awslogs-region        = local.aws_region
+          awslogs-stream-prefix = "migrate"
+        }
+      }
+    }
+  ])
+
+  tags = {
+    Name         = "${local.project}-${local.environment}-migrate-task"
+    Owner        = local.owner
+    Project      = "bluegreen-canary"
+    Environment  = local.environment
+    "aws-apn-id" = local.aws_apn_id
+  }
+}
+
+
 # Green frontend ECS cluster and task definition for this region.
 module "frontend_ecs" {
   source = "../modules/ecs"

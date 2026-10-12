@@ -31,7 +31,15 @@ resource "aws_route53_record" "blue" {
     zone_id                = var.blue_alb_zone_id
     evaluate_target_health = true
   }
+
+  # The CD pipeline owns the weights after creation (canary shift, promote, rollback).
+  # Without this, every `terraform apply` would reset them to the values above.
+  lifecycle {
+    ignore_changes = [weighted_routing_policy]
+  }
 }
+
+
 
 resource "aws_route53_record" "green" {
   zone_id = aws_route53_zone.main.zone_id
@@ -50,4 +58,12 @@ resource "aws_route53_record" "green" {
     zone_id                = var.green_alb_zone_id
     evaluate_target_health = true
   }
+
+  # The CD pipeline owns the weights after creation (canary shift, promote, rollback).
+  # Without this, every `terraform apply` would reset them to the values above.
+  lifecycle {
+    ignore_changes = [weighted_routing_policy]
+  }
 }
+
+

@@ -48,6 +48,8 @@ env:
   GREEN_FRONTEND_SERVICE: bluegreen-canary-green-green-frontend-service
   GREEN_BACKEND_CLUSTER: bluegreen-canary-green-green-backend-cluster
   GREEN_BACKEND_SERVICE: bluegreen-canary-green-green-backend-service
+  BLUE_MIGRATE_TASK_FAMILY: bluegreen-canary-blue-blue-migrate-task
+  GREEN_MIGRATE_TASK_FAMILY: bluegreen-canary-green-green-migrate-task
   BLUE_ALB_NAME: ${{ vars.BLUE_ALB_NAME }}
   GREEN_ALB_NAME: ${{ vars.GREEN_ALB_NAME }}
   BLUE_ALARM_NAME: ${{ vars.BLUE_ALARM_NAME }}
@@ -199,6 +201,11 @@ jobs:
           docker push ${BLUE_REPOSITORY_URI}:frontend-${IMAGE_TAG}
           docker build -f applications/backend/Dockerfile -t ${BLUE_REPOSITORY_URI}:backend-${IMAGE_TAG} applications/backend
           docker push ${BLUE_REPOSITORY_URI}:backend-${IMAGE_TAG}
+      
+      
+      - name: Run database migrations (blue)
+        if: env.DEPLOYMENT_TARGET != 'green'
+        run: bash scripts/run-migration.sh us-east-1 "${BLUE_BACKEND_CLUSTER}" "${BLUE_BACKEND_SERVICE}" "${BLUE_MIGRATE_TASK_FAMILY}" "${BLUE_REPOSITORY_URI}:backend-${IMAGE_TAG}"
 
       - name: Deploy blue region
         if: env.DEPLOYMENT_TARGET != 'green'
@@ -232,6 +239,10 @@ jobs:
           docker push ${GREEN_REPOSITORY_URI}:frontend-${IMAGE_TAG}
           docker build -f applications/backend/Dockerfile -t ${GREEN_REPOSITORY_URI}:backend-${IMAGE_TAG} applications/backend
           docker push ${GREEN_REPOSITORY_URI}:backend-${IMAGE_TAG}
+      
+      - name: Run database migrations (green)
+        if: env.DEPLOYMENT_TARGET != 'blue'
+        run: bash scripts/run-migration.sh eu-north-1 "${GREEN_BACKEND_CLUSTER}" "${GREEN_BACKEND_SERVICE}" "${GREEN_MIGRATE_TASK_FAMILY}" "${GREEN_REPOSITORY_URI}:backend-${IMAGE_TAG}"
 
       - name: Deploy green region
         if: env.DEPLOYMENT_TARGET != 'blue'
