@@ -42,7 +42,7 @@ jobs:
           node --check applications/backend/server.js
           node --check applications/backend/migrate.js
           node --check applications/frontend/app.js
-          bash -n scripts/run-migration.sh
+          for script in scripts/*.sh; do bash -n "$script"; done
 
       - name: Run backend tests
         run: npm --prefix applications/backend test
@@ -68,6 +68,7 @@ jobs:
           - infrastructure/us-east-1
           - infrastructure/eu-north-1
           - infrastructure/global
+          - infrastructure/data
 
     steps:
       - name: Checkout code

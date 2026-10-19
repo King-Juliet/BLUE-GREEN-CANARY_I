@@ -1,7 +1,13 @@
-# Global routing layer for cross-region canary
-# Route53 weighted routing is used to split traffic between the blue region and green region.
-# This can be used as the global canary controller instead of ALB weighted target groups.
+# Global DNS layer.
 #
+# Terraform only owns the hosted zone. The records inside it are owned by the CD pipeline
+# (scripts/route53.sh) because they change on every release and depend on which regions exist:
+#   app.<zone>          weighted record(s), one per live region, used for the canary split
+#   blue.app.<zone>     fixed hostname for the blue region  (used by canary session pinning)
+#   green.app.<zone>    fixed hostname for the green region
+#
+# The first version of this project created the two weighted records here. The "removed" blocks
+# below tell Terraform to forget them WITHOUT deleting them, so live traffic is not interrupted.
 resource "aws_route53_zone" "main" {
   name = "bluegreen-canary.test"
 
@@ -14,56 +20,18 @@ resource "aws_route53_zone" "main" {
   }
 }
 
-resource "aws_route53_record" "blue" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = "app.bluegreen-canary.test"
-  type    = "A"
-  #ttl     = 60
+removed {
+  from = aws_route53_record.blue
 
-  weighted_routing_policy {
-    weight = 100
-  }
-
-  set_identifier = "blue-region"
-
-  alias {
-    name                   = "dualstack.${var.blue_alb_dns_name}"
-    zone_id                = var.blue_alb_zone_id
-    evaluate_target_health = true
-  }
-
-  # The CD pipeline owns the weights after creation (canary shift, promote, rollback).
-  # Without this, every `terraform apply` would reset them to the values above.
   lifecycle {
-    ignore_changes = [weighted_routing_policy]
+    destroy = false
   }
 }
 
+removed {
+  from = aws_route53_record.green
 
-
-resource "aws_route53_record" "green" {
-  zone_id = aws_route53_zone.main.zone_id
-  name    = "app.bluegreen-canary.test"
-  type    = "A"
-  #ttl     = 60
-
-  weighted_routing_policy {
-    weight = 0
-  }
-
-  set_identifier = "green-region"
-
-  alias {
-    name                   = "dualstack.${var.green_alb_dns_name}"
-    zone_id                = var.green_alb_zone_id
-    evaluate_target_health = true
-  }
-
-  # The CD pipeline owns the weights after creation (canary shift, promote, rollback).
-  # Without this, every `terraform apply` would reset them to the values above.
   lifecycle {
-    ignore_changes = [weighted_routing_policy]
+    destroy = false
   }
 }
-
-

@@ -12,3 +12,10 @@ terraform {
 provider "aws" {
   region = "eu-north-1"
 }
+
+# The shared database VPC lives in us-east-1. This provider accepts the peering connection
+# and adds the return route on that side.
+provider "aws" {
+  alias  = "data"
+  region = "us-east-1"
+}

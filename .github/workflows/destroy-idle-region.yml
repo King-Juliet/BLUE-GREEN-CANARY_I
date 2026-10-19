@@ -1,0 +1,67 @@
+# Manual button: destroys the region that is NOT serving traffic (for example after a rolled-back canary,
+# when the failed region was left running for debugging). The shared database is never touched.
+#
+# Run it from the Actions tab: "Destroy Idle Region" -> Run workflow -> type "destroy" -> Run workflow.
+name: Destroy Idle Region
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "destroy" to confirm. This deletes the idle region (VPC, load balancer, services, images).'
+        required: true
+        type: string
+
+permissions:
+  id-token: write
+  contents: read
+
+# Same group as the deploy workflow, so the two can never run at the same time.
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  TF_STATE_BUCKET: ${{ vars.TF_STATE_BUCKET }}
+  ACTIVE_REGION_PARAMETER: /bluegreen-canary/deployment/active-region
+  ROUTE53_ZONE_NAME: ${{ vars.ROUTE53_ZONE_NAME }}
+  ROUTE53_RECORD_NAME: ${{ vars.ROUTE53_RECORD_NAME }}
+  BLUE_ALB_NAME: ${{ vars.BLUE_ALB_NAME }}
+  GREEN_ALB_NAME: ${{ vars.GREEN_ALB_NAME }}
+
+jobs:
+  destroy-idle-region:
+    name: Destroy idle region
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }}
+        run: |
+          if [ "${CONFIRM}" != "destroy" ]; then
+            echo 'Confirmation did not match. Type exactly: destroy'
+            exit 1
+          fi
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: us-east-1
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.10.5
+
+      - name: Destroy the idle region
+        run: |
+          set -euo pipefail
+          ACTIVE=$(aws ssm get-parameter --region us-east-1 --name "${ACTIVE_REGION_PARAMETER}" --query 'Parameter.Value' --output text)
+          if [ "${ACTIVE}" = "blue" ]; then IDLE="green"; else IDLE="blue"; fi
+          echo "Active region: ${ACTIVE}. Idle region to destroy: ${IDLE}"
+          bash scripts/destroy-region.sh "${IDLE}"

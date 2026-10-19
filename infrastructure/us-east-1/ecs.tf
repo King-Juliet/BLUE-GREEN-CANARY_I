@@ -21,7 +21,7 @@ resource "aws_iam_role_policy_attachment" "ecs_execution_ecr" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy"
 }
 
-# Permission for the backend task to read its regional database password.
+# Permission for the backend task to read the shared database password.
 resource "aws_iam_role_policy" "ecs_task_ssm" {
   name = "${local.project}-${local.environment}-ecs-ssm-read"
   role = aws_iam_role.ecs_task.id
@@ -31,7 +31,7 @@ resource "aws_iam_role_policy" "ecs_task_ssm" {
     Statement = [{
       Effect   = "Allow"
       Action   = ["ssm:GetParameter"]
-      Resource = "arn:aws:ssm:${local.aws_region}:*:parameter/bluegreen-canary/${local.environment}/${local.aws_region}/database/password"
+      Resource = "arn:aws:ssm:${local.aws_region}:*:parameter${local.db_password_parameter}"
     }]
   })
 }
@@ -63,11 +63,11 @@ resource "aws_ecs_task_definition" "migrate" {
       command   = ["node", "migrate.js"]
       environment = [
         { name = "AWS_REGION", value = local.aws_region },
-        { name = "DB_HOST", value = module.database.db_endpoint },
-        { name = "DB_PORT", value = tostring(module.database.db_port) },
+        { name = "DB_HOST", value = data.terraform_remote_state.data.outputs.db_address },
+        { name = "DB_PORT", value = tostring(data.terraform_remote_state.data.outputs.db_port) },
         { name = "DB_USER", value = "appuser" },
         { name = "DB_NAME", value = "appdb" },
-        { name = "DB_CREDENTIALS_SSM_NAME", value = "/bluegreen-canary/${local.environment}/${local.aws_region}/database/password" }
+        { name = "DB_CREDENTIALS_SSM_NAME", value = local.db_password_parameter }
       ]
       logConfiguration = {
         logDriver = "awslogs"
@@ -104,6 +104,11 @@ module "frontend_ecs" {
   execution_role_arn = aws_iam_role.ecs_execution.arn
   task_role_arn      = aws_iam_role.ecs_task.arn
   log_group_name     = module.cloudwatch.log_group_name
+  # nginx uses these two values to set the "which region served you" cookie.
+  container_environment = [
+    { name = "REGION_NAME", value = local.environment },
+    { name = "COOKIE_DOMAIN", value = local.app_domain }
+  ]
 }
 
 
@@ -125,11 +130,11 @@ module "backend_ecs" {
   container_environment = [
     { name = "PORT", value = tostring(local.app_port) },
     { name = "AWS_REGION", value = local.aws_region },
-    { name = "DB_HOST", value = module.database.db_endpoint },
-    { name = "DB_PORT", value = tostring(module.database.db_port) },
+    { name = "DB_HOST", value = data.terraform_remote_state.data.outputs.db_address },
+    { name = "DB_PORT", value = tostring(data.terraform_remote_state.data.outputs.db_port) },
     { name = "DB_USER", value = "appuser" },
     { name = "DB_NAME", value = "appdb" },
-    { name = "DB_CREDENTIALS_SSM_NAME", value = "/bluegreen-canary/${local.environment}/${local.aws_region}/database/password" }
+    { name = "DB_CREDENTIALS_SSM_NAME", value = local.db_password_parameter }
   ]
 }
 
@@ -181,4 +186,3 @@ resource "aws_ecs_service" "backend" {
     ignore_changes = [task_definition]
   }
 }
-

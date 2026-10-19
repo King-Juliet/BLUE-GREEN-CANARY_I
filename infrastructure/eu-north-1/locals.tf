@@ -6,6 +6,11 @@ locals {
   aws_region        = "eu-north-1"
   app_port          = 8080
   health_check_path = "/health"
+
+  # Shared database password (same name in every region) and the public app hostname.
+  db_password_parameter = "/bluegreen-canary/shared/database/password"
+  app_domain            = "app.bluegreen-canary.test"
+
   tags = {
     Owner        = local.owner
     Project      = "bluegreen-canary"

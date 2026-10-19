@@ -1,0 +1,24 @@
+# nginx fills in ${REGION_NAME} and ${COOKIE_DOMAIN} from the container's environment at start-up
+# (the official nginx image renders /etc/nginx/templates/*.template into /etc/nginx/conf.d/).
+server {
+  listen 8080;
+  server_name _;
+
+  root /usr/share/nginx/html;
+  index index.html;
+
+  # Tags the visitor with the region that served them. During a canary the load balancers read this
+  # cookie to keep a visitor in the same region instead of letting DNS pick a region on every lookup.
+  # Not a secret, so HttpOnly only keeps it away from page scripts; no "Secure" because the site is plain HTTP.
+  add_header Set-Cookie "bg_region=${REGION_NAME}; Domain=${COOKIE_DOMAIN}; Path=/; Max-Age=3600; HttpOnly; SameSite=Lax" always;
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+
+  location = /health {
+    access_log off;
+    return 200 '{"status":"healthy"}';
+    add_header Content-Type application/json;
+  }
+}

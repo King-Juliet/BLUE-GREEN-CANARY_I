@@ -3,5 +3,5 @@ output "route53_zone_id" {
 }
 
 output "route53_record_name" {
-  value = aws_route53_record.blue.name
+  value = "app.${aws_route53_zone.main.name}"
 }
